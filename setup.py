@@ -40,6 +40,6 @@ setup(name='pygis',
     install_requires=install_requires,
     entry_points={
         'console_scripts':
-            ['shp2xml=pygis.shp2kml:main']
+            ['shp2kml=pygis.shp2kml:main']
     }
 )
