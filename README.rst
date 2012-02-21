@@ -1,23 +1,22 @@
-This file requires editing
-==========================
+Python GIS Experiments
+======================
 
-Note to the author: Please add something informative to this README *before*
-releasing your software, as `a little documentation goes a long way`_.  Both
-README.rst (this file) and NEWS.txt (release notes) will be included in your
-package metadata which gets displayed in the PyPI page for your project.
+This is a collection of some Python experiments I've been writing for
+interoperating with GIS systems and file formats.
 
-You can take a look at the README.txt of other projects, such as repoze.bfg
-(http://bfg.repoze.org/trac/browser/trunk/README.txt) for some ideas.
+Currently the only useful tool is ``shp2kml`` which can convert ArcGIS-style
+SHP and DBF files into KML files for visualising with Google Earth or any
+number of online mapping providers.
 
-.. _`a little documentation goes a long way`: http://www.martinaspeli.net/articles/a-little-documentation-goes-a-long-way
+Building
+--------
 
-Credits
--------
+See the ``HACKING.txt`` file for build instructions.
 
-- `Distribute`_
-- `Buildout`_
-- `modern-package-template`_
+Authorship and License
+----------------------
 
-.. _Buildout: http://www.buildout.org/
-.. _Distribute: http://pypi.python.org/pypi/distribute
-.. _`modern-package-template`: http://pypi.python.org/pypi/modern-package-template
+This work is Copyright 2012 Rich Wareham <rjw57@cantab.net> and has been
+released under the Apache-2.0 license.  The full text can be found in the
+``LICENSE-2.0.txt`` file.
+
