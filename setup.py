@@ -9,8 +9,10 @@ NEWS = open(os.path.join(here, 'NEWS.txt')).read()
 version = '0.1'
 
 install_requires = [
+    'anyjson',
     'argparse',
     'html',
+    'gdal',
     'pyshp',
     'pyproj',
 ]
@@ -34,6 +36,6 @@ setup(name='PyGIS',
     install_requires=install_requires,
     entry_points={
         'console_scripts':
-            ['shp2xml=pygis.shp2kml:main']
+            ['shp2xml=pygis.shp2kml:main', 'shp2json=pygis.shp2json:main']
     }
 )
