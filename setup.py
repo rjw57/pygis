@@ -16,11 +16,17 @@ install_requires = [
 ]
 
 
-setup(name='PyGIS',
+setup(name='pygis',
     version=version,
     description="Python utilities for GIS files",
     long_description=README + '\n\n' + NEWS,
     classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Environment :: Console',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: Apache Software License',
+        'Topic :: Scientific/Engineering :: GIS',
+        'Topic :: Utilities',
       # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
     ],
     keywords='',
