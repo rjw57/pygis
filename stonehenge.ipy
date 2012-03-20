@@ -1,0 +1,69 @@
+from pylab import *
+
+import pygis.raster
+import pygis.mh
+
+# BNG co-ords of Stonehenge and Avebury
+stonehenge=(412245, 142195)
+avebury=(410235, 169965)
+
+# Load the elevation data
+elev = pygis.raster.open_raster('dtm21.tif')
+grad = pygis.raster.elevation_gradient(elev)
+
+# Specify initial path
+start_path=elev.proj_to_linear((stonehenge, avebury))
+
+def path_elevations(elev, points):
+    e = []
+    dists = []
+    cum_d = 0.0
+    step = np.array(elev.pixel_linear_shape).min()
+    for start, end in zip(points[:-1], points[1:]):
+        ps, ds = pygis.path.points_on_line(start, end, step)
+        for p, d in zip(ps, ds):
+            e.append(elev.sample(p))
+            dists.append(d + cum_d)
+        cum_d += ds[-1]
+    return dists, e
+
+cost = pygis.mh.path_cost(start_path, grad)
+path = start_path
+best = (path, cost)
+
+def tick(its=100):
+    global path, cost, best
+    for x in range(its):
+        path, cost = pygis.mh.sample(path, cost, grad)
+        if cost < best[1]:
+            best = (path, cost)
+        print('it: %s, cost: %s, best: %s' % (x, cost, best[1]))
+
+def run(its=100):
+    tick(its)
+
+    figure(1)
+    clf()
+    pygis.raster.show_raster(elev, cmap=cm.gray)
+    plot(stonehenge[0], stonehenge[1], '.r')
+    plot(avebury[0], avebury[1], '.r')
+
+    a = array(start_path)
+    plot(a[:,0], a[:,1])
+    a = array(path)
+    plot(a[:,0], a[:,1])
+    a = array(best[0])
+    plot(a[:,0], a[:,1])
+
+    axis('image')
+
+    figure(2)
+    clf()
+    plot(*path_elevations(elev, start_path))
+    plot(*path_elevations(elev, path))
+    plot(*path_elevations(elev, best[0]))
+
+run(50)
+
+# vim:filetype=python:sw=4:sts=4:et
+
