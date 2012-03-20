@@ -82,72 +82,143 @@ def split_path(path, distance):
 
     return left, right
 
+def replace_path(path):
+    log_forward = 0.0
+    log_backward = 0.0
+    braveness = 0.5
+
+    assert len(path) >= 2
+    delta = path[-1] - path[0]
+    line_dist = np.sqrt(np.dot(delta, delta))
+
+    l = 2
+    n_internal_points = np.random.poisson(l)
+    log_forward += stats.poisson.logpmf(n_internal_points, l)
+    step = line_dist / (n_internal_points + 1)
+    new_path, _ = pygis.path.points_on_line(path[0], path[-1], step)
+    for idx in range(1, 1+n_internal_points):
+        dp = np.random.randn(2) * step * braveness
+        new_path[idx] += dp
+        log_forward += stats.norm.logpdf(dp, 0, step * braveness).sum()
+
+    # calculate lik of replacing this path with the original path
+    n_orig_internal_points = len(path) - 2
+    log_backward += stats.poisson.logpmf(n_orig_internal_points, l)
+
+    step = line_dist / (n_orig_internal_points + 1)
+    line_p, _ = pygis.path.points_on_line(path[0], path[-1], step)
+    for idx in range(1, 1+n_orig_internal_points):
+        dp = path[idx] - line_p[idx]
+        log_backward += stats.norm.logpdf(dp, 0, step * braveness).sum()
+
+    return new_path, log_forward, log_backward
+
+def replace_subset_of_path(path):
+    log_forward = 0.0
+    log_backward = 0.0
+    new_path = path
+
+    distances = path_distances(path)
+    d1 = uniform() * distances[-1]
+    start = find(distances >= d1)[0]-1
+    d2 = uniform() * (distances[-1] - d1) + d1
+    end = find(distances >= d2)[0]
+
+    subset = path[start:end+1]
+    if len(subset) < 2:
+        print(subset)
+        assert False
+    new_subset, sf, sb = replace_path(subset)
+    log_forward += sf
+    log_backward += sb
+
+    #log_backward += 2.0 * -np.log(len(new_path))
+
+    path = list(path)
+    new_path = path[:start] + new_subset + path[end+1:]
+
+    return new_path, log_forward, log_backward
+
+def sample_segment(path):
+    start_idx = np.random.randint(0, len(path)-1)
+    end_idx = start_idx + 1
+    lik = -np.log(len(path)-1)
+    return start_idx, end_idx, lik
+
 def mutate_path(path):
     log_forward = 0.0
     log_backward = 0.0
-    path = np.array(path)
+    new_path = path
 
-    # choose which move to make
-    move = np.random.randint(0,3)
+    move = np.random.randint(1,3)
 
     if move == 0:
-        # split move
+        # replace path subset
+        #new_path, log_forward, log_backward = replace_subset_of_path(path)
 
-        # distance to split at
-        distances = path_distances(path)
-        split_dist = np.random.uniform() * distances[-1]
-        head, tail = split_path(path, split_dist)
+        # noise a point
+        if len(path) <= 2:
+            return new_path, log_forward, log_backward
 
-        # how big is the split segment?
-        seg_delta = tail[1] - head[-1]
-        seg_delta_len = np.sqrt(np.dot(seg_delta, seg_delta))
-        log_forward += log(seg_delta_len)-log(distances[-1])
+        idx = np.random.randint(1, len(path)-1)
 
-        sigma = seg_delta_len * 0.25
-        dp = np.random.randn(2) * sigma
-        log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
-        new_p = dp + 0.5*(head[-1] + tail[1])
+        d1 = path[idx] - path[idx-1]
+        d1 = np.sqrt(np.dot(d1,d1))
+        d2 = path[idx+1] - path[idx]
+        d2 = np.sqrt(np.dot(d2,d2))
+        sigma = 0.5 * (d1 + d2) * 0.25
 
-        new_path = np.vstack((head[:-1], [new_p,], tail[1:]))
+        dp = randn(2) * sigma
 
-        # backward move is prob of choosing this index to remove
-        log_backward -= -log(len(new_path)-2)
+        new_path = list(path)
+        new_path[idx] = new_path[idx] + dp
+
     elif move == 1:
-        # delete move
-        new_path = list(path)
-        if len(path) > 2:
-            del_idx = np.random.randint(1, len(path)-1)
-            log_forward += -log(len(path)-2)
-            del_p = new_path[del_idx]
-            new_path = vstack((new_path[:del_idx], new_path[del_idx+1:]))
+        # add a new waypoint
+        start_idx, end_idx, lik = sample_segment(path)
+        log_forward += lik
 
-            seg_delta = new_path[del_idx] - new_path[del_idx-1]
-            seg_delta_len = np.sqrt(np.dot(seg_delta, seg_delta))
-            distances = path_distances(path)
-            log_backward += log(seg_delta_len)-log(distances[-1])
+        start = path[start_idx]
+        end = path[end_idx]
+        new_p = (end+start) * 0.5
 
-            sigma = seg_delta_len * 0.25
-            seg_mid = 0.5 * (new_path[del_idx-1] + new_path[del_idx])
-            dp = del_p - seg_mid
-            log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
+        d = end - start
+        d = np.sqrt(np.dot(d,d))
+        sigma = d * 0.25
+        dp = randn(2) * sigma
+        new_p += dp
+        log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
+
+        path = list(path)
+        new_path = path[:end_idx] + [new_p,] + path[end_idx:]
+
+        # reverse is choosing this point to delete
+        log_backward += -log(len(new_path)-2)
     elif move == 2:
-        # replace move
-        new_path = list(path)
-        if len(path) > 2:
-            n_indices = np.random.randint(1, len(path)-1)
-            start_idx = np.random.randint(1, len(path)-n_indices)
-            end_idx = start_idx + n_indices - 1
-            assert start_idx > 0
-            assert end_idx < len(path)-1
+        # remove a waypoint
+        if len(path) <= 2:
+            return new_path, log_forward, log_backward
 
-            old_section = path[start_idx:end_idx+1]
-            new_section = np.array(old_section, copy=True)
-            sigma = 30
-            for p in new_section:
-                dp = randn(2) * sigma
-                p += dp
+        # where?
+        del_idx = np.random.randint(1, len(path)-1)
+        log_forward += -log(len(path)-2)
 
-            new_path = np.vstack((path[:start_idx], new_section, path[end_idx+1:]))
+        path = list(path)
+        del_p = path[del_idx]
+        new_path = path[:del_idx] + path[del_idx+1:]
+
+        # prob of adding it back
+        log_backward += -log(len(new_path)-1)
+
+        start = path[del_idx-1]
+        end = path[del_idx]
+        midp = (end+start) * 0.5
+
+        d = end - start
+        d = np.sqrt(np.dot(d,d))
+        sigma = d * 0.25
+        dp = del_p - midp
+        log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
     else:
         assert False
 
@@ -165,8 +236,8 @@ def sample(path, cost, grad):
     log_p_old = log(l) - l * cost
     log_alpha += log_p_new - log_p_old
 
-#    log_p_new -= len(new_path)
-#    log_p_old -= len(path)
+    log_p_new -= len(new_path)
+    log_p_old -= len(path)
 
     alpha = exp(log_alpha)
     if np.random.uniform() < alpha:

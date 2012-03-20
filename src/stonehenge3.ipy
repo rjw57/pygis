@@ -1,0 +1,222 @@
+from pylab import *
+import pygis.raster
+import pygis.mh
+import numpy as np
+import scipy.special as sps
+import scipy.stats as stats
+
+# BNG co-ords of Stonehenge and Avebury
+stonehenge=(412245, 142195)
+avebury=(410235, 169965)
+
+# Load the elevation data
+elev = pygis.raster.open_raster('dtm21.tif')
+grad = pygis.raster.elevation_gradient(elev)
+
+# Specify initial path
+start_path=elev.proj_to_linear((stonehenge, avebury))
+start_cost=pygis.mh.path_cost(start_path, grad)
+current = (start_path, start_cost)
+best = (start_path, start_cost)
+
+def path_elevations(elev, points):
+    e = None
+    dists = None
+    step = np.array(elev.pixel_linear_shape).min()
+    for start, end in zip(points[:-1], points[1:]):
+        ps, ds = pygis.path.points_on_line(start, end, step)
+        es = elev.lanczos_sample(ps)
+        if e is None:
+            e = es
+            dists = ds
+        else:
+            e = hstack((e, es))
+            dists = hstack((dists, dists[-1] + ds))
+    return dists, e
+
+def plot_state():
+    figure(1)
+    clf()
+
+    subplot(211)
+    pygis.raster.show_raster(elev, cmap=cm.gray)
+    plot(stonehenge[0], stonehenge[1], '.r', scalex=False, scaley=False)
+    plot(avebury[0], avebury[1], '.r', scalex=False, scaley=False)
+
+    a = array(start_path)
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    a = array(current[0])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    a = array(best[0])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+
+    subplot(212)
+    plot(*path_elevations(elev, start_path))
+    plot(*path_elevations(elev, current[0]))
+    plot(*path_elevations(elev, best[0]))
+
+def path_distances(path):
+    distances = [0.0]
+    for start, end in zip(path[:-1], path[1:]):
+        delta = end - start
+        distances.append(np.sqrt(np.vdot(delta, delta)))
+    return np.array(distances)
+
+def distance_sample_point(path):
+    distances = path_distances(path)
+    dist = np.random.uniform() * distances[-1]
+    idx = find(distances >= dist)[0]
+    return idx, np.log(distances[idx]-distances[idx-1]) - np.log(distances[-1])
+
+def snip_path(path, relative_distance):
+    distances = path_distances(path)
+    dist = relative_distance * distances[-1]
+    idx = find(distances >= dist)[0]
+    path = list(path)
+    left = path[:idx]
+    right = path[idx:]
+    alpha = (dist - distances[idx-1]) / (distances[idx] - distances[idx-1])
+    mid = left[-1] + (right[0] - left[-1]) * alpha
+    return left + [mid,] + right, len(left)
+
+def mutate_path(path):
+    log_forward = 0.0
+    log_backward = 0.0
+    new_path = path
+
+    braveness = 0.25
+    move = np.random.randint(0,3)
+
+    if move == 0:
+        mid_size = np.random.randint(2, len(path)+1)
+        mid_start = np.random.randint(0, len(path)-mid_size+1)
+        mid_end = mid_start + mid_size
+        assert len(path)-1 > 0
+        assert len(path)-mid_size+1 > 0
+        log_forward += -np.log(len(path)-1)
+        log_forward += -np.log(len(path)-mid_size+1)
+
+        assert mid_start >= 0
+        assert mid_size >= 2
+        assert mid_end <= len(path)
+
+        path = list(path)
+        left = path[:mid_start]
+        mid = path[mid_start:mid_end]
+        right = path[mid_end:]
+
+        assert len(left) + len(mid) + len(right) == len(path)
+
+        delta = mid[-1] - mid[0]
+
+        if len(mid) > 2:
+            # replace middle path
+            lam = len(mid)-2
+            #n_points = np.random.poisson(lam)
+            #log_forward += stats.poisson.logpmf(n_points, lam)
+            n_points = lam
+            step = np.sqrt(np.dot(delta, delta)) / (n_points + 1)
+            sigma = step * braveness
+            new_mid, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
+            for idx in range(1, len(new_mid)-1):
+                dp = randn(2) * sigma
+                log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
+                new_mid[idx] = new_mid[idx] + dp
+        else:
+            new_mid = mid
+
+        # how likely are we to generate the middle path again?
+        if len(new_mid) > 2:
+            lam = len(new_mid)-2
+            #log_backward += stats.poisson.logpmf(len(mid)-2, lam)
+            step = np.sqrt(np.dot(delta, delta)) / (len(mid)-2 + 1)
+            sigma = step * braveness
+            centres, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
+            for idx in range(0, len(mid)-1):
+                dp = mid[idx] - centres[idx]
+                log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
+        elif len(mid) > 2:
+            log_backward -= np.inf
+
+        new_path = left + new_mid + right
+        assert len(new_path)-1 > 0
+        assert len(new_path)-len(new_mid)+1 > 0
+        log_backward += -np.log(len(new_path)-1)
+        log_backward += -np.log(len(new_path)-len(new_mid)+1)
+    elif move == 1:
+        new_path, new_idx = snip_path(path, uniform())
+
+        d1 = new_path[new_idx] - new_path[new_idx-1]
+        d1 = np.sqrt(np.dot(d1,d1))
+        d2 = new_path[new_idx] - new_path[new_idx+1]
+        d2 = np.sqrt(np.dot(d2,d2))
+        d = 0.5 * (d1+d2)
+        sigma = braveness * d
+
+        midp = 0.5 * (new_path[new_idx-1] + new_path[new_idx+1])
+        dp = randn(2) * sigma
+        log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
+        new_path[new_idx] = midp + dp
+
+        log_backward += -log(len(new_path)-2)
+    elif move == 2:
+        # del point
+        if len(path) > 2:
+            del_idx = np.random.randint(1, len(path)-1)
+            log_forward += -log(len(new_path)-2)
+            new_path = list(path)
+
+            d1 = new_path[del_idx] - new_path[del_idx-1]
+            d1 = np.sqrt(np.dot(d1,d1))
+            d2 = new_path[del_idx] - new_path[del_idx+1]
+            d2 = np.sqrt(np.dot(d2,d2))
+            d = 0.5 * (d1+d2)
+            sigma = braveness * d
+
+            midp = 0.5 * (new_path[del_idx-1] + new_path[del_idx+1])
+
+            del_p = new_path[del_idx]
+            del new_path[del_idx]
+
+            dp = del_p - midp
+            log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
+    else:
+        assert False
+
+    return new_path, log_forward, log_backward
+
+def sample(path, cost, grad):
+    # propose path
+    new_path, log_forward, log_inv = mutate_path(path)
+    new_cost = pygis.mh.path_cost(new_path, grad)
+
+    log_alpha = log_inv - log_forward
+
+    l = 1.0
+    log_p_new = log(l) - l * new_cost
+    log_p_old = log(l) - l * cost
+    log_alpha += log_p_new - log_p_old
+
+    log_p_new -= len(new_path)
+    log_p_old -= len(path)
+
+    alpha = exp(log_alpha)
+    if np.random.uniform() < alpha:
+        return new_path, new_cost
+    else:
+        return path, cost
+
+def tick(its=10):
+    global current, best
+    for i in range(its):
+        current = sample(current[0], current[1], grad)
+        if current[1] < best[1]:
+            best = current
+        if i % 10 == 0:
+            print('current: %s, best: %s' % (current[1], best[1]))
+
+tick()
+plot_state()
+
+# vim:filetype=python:sw=4:sts=4:et
+
