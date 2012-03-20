@@ -1,3 +1,5 @@
+import matplotlib
+
 from pylab import *
 import pygis.raster
 import pygis.mh
@@ -85,7 +87,7 @@ def mutate_path(path):
     new_path = path
 
     braveness = 0.25
-    move = np.random.randint(0,3)
+    move = np.random.randint(0,4)
 
     if move == 0:
         mid_size = np.random.randint(2, len(path)+1)
@@ -109,34 +111,30 @@ def mutate_path(path):
 
         delta = mid[-1] - mid[0]
 
-        if len(mid) > 2:
-            # replace middle path
-            lam = len(mid)-2
-            #n_points = np.random.poisson(lam)
-            #log_forward += stats.poisson.logpmf(n_points, lam)
-            n_points = lam
-            step = np.sqrt(np.dot(delta, delta)) / (n_points + 1)
-            sigma = step * braveness
-            new_mid, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
-            for idx in range(1, len(new_mid)-1):
-                dp = randn(2) * sigma
-                log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
-                new_mid[idx] = new_mid[idx] + dp
-        else:
-            new_mid = mid
+        # replace middle path
+        #lam = len(mid)-2
+        lam = 2
+        n_points = np.random.poisson(lam)
+        log_forward += stats.poisson.logpmf(n_points, lam)
+        #n_points = 
+        step = np.sqrt(np.dot(delta, delta)) / (n_points + 1)
+        sigma = step * braveness
+        new_mid, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
+        for idx in range(1, len(new_mid)-1):
+            dp = randn(2) * sigma
+            log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
+            new_mid[idx] = new_mid[idx] + dp
 
         # how likely are we to generate the middle path again?
-        if len(new_mid) > 2:
-            lam = len(new_mid)-2
-            #log_backward += stats.poisson.logpmf(len(mid)-2, lam)
-            step = np.sqrt(np.dot(delta, delta)) / (len(mid)-2 + 1)
-            sigma = step * braveness
-            centres, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
-            for idx in range(0, len(mid)-1):
-                dp = mid[idx] - centres[idx]
-                log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
-        elif len(mid) > 2:
-            log_backward -= np.inf
+        #lam = len(new_mid)-2
+        lam = 2
+        log_backward += stats.poisson.logpmf(len(mid)-2, lam)
+        step = np.sqrt(np.dot(delta, delta)) / (len(mid)-2 + 1)
+        sigma = step * braveness
+        centres, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
+        for idx in range(0, len(mid)-1):
+            dp = mid[idx] - centres[idx]
+            log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
 
         new_path = left + new_mid + right
         assert len(new_path)-1 > 0
@@ -180,6 +178,21 @@ def mutate_path(path):
 
             dp = del_p - midp
             log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
+    elif move == 3:
+        if len(path) > 2:
+            # wiggle some point
+            idx = np.random.randint(1, len(path)-1)
+            new_path = list(path)
+
+            d1 = path[idx] - path[idx-1]
+            d2 = path[idx+1] - path[idx]
+
+            d1 = np.sqrt(np.dot(d1,d1))
+            d2 = np.sqrt(np.dot(d2,d2))
+            d = 0.5 * (d1 + d2)
+
+            sigma = braveness * d
+            new_path[idx] = new_path[idx] + randn(2) * sigma
     else:
         assert False
 
@@ -215,7 +228,7 @@ def tick(its=10):
         if i % 10 == 0:
             print('current: %s, best: %s' % (current[1], best[1]))
 
-tick()
+tick(100)
 plot_state()
 
 # vim:filetype=python:sw=4:sts=4:et
