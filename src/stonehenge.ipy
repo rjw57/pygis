@@ -22,7 +22,7 @@ def path_elevations(elev, points):
     for start, end in zip(points[:-1], points[1:]):
         ps, ds = pygis.path.points_on_line(start, end, step)
         for p, d in zip(ps, ds):
-            e.append(elev.sample(p))
+            e.append(elev.lanczos_sample(p))
             dists.append(d + cum_d)
         cum_d += ds[-1]
     return dists, e
@@ -45,17 +45,15 @@ def run(its=100):
     figure(1)
     clf()
     pygis.raster.show_raster(elev, cmap=cm.gray)
-    plot(stonehenge[0], stonehenge[1], '.r')
-    plot(avebury[0], avebury[1], '.r')
+    plot(stonehenge[0], stonehenge[1], '.r', scalex=False, scaley=False)
+    plot(avebury[0], avebury[1], '.r', scalex=False, scaley=False)
 
     a = array(start_path)
-    plot(a[:,0], a[:,1])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
     a = array(path)
-    plot(a[:,0], a[:,1])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
     a = array(best[0])
-    plot(a[:,0], a[:,1])
-
-    axis('image')
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
 
     figure(2)
     clf()

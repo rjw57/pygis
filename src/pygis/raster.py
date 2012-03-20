@@ -131,9 +131,44 @@ class Raster(object):
 
         # Map to pixel values
         points = self.proj_to_pixel(points)
+        return self.sample_pixel(points)
 
+    def lanczos_sample(self, points):
+        pixels = self.proj_to_pixel(points)
+        int_pixels = np.floor(pixels)
+        a = 2
+        samples = None
+        norm = None
+        for dx in range(-a, a+1):
+            for dy in range(-a, a+1):
+                coords = np.array((int_pixels[:,0] + dx, int_pixels[:,1] + dy)).transpose()
+                delta = pixels - coords
+
+                x_kernel = np.sinc(delta[:,0]) * np.sinc(delta[:,0] / a)
+                y_kernel = np.sinc(delta[:,1]) * np.sinc(delta[:,1] / a)
+
+                vals = np.array(self.sample_pixel(coords))
+                kernel = x_kernel * y_kernel
+
+                if len(vals.shape) > 1 and vals.shape[1] > 1:
+                    kernel = np.tile(kernel, (vals.shape[1],1)).transpose()
+
+                contribs = kernel * vals
+                
+                if samples is None:
+                    samples = contribs
+                    norm = kernel
+                else:
+                    samples += contribs
+                    norm += kernel
+
+        return samples / norm
+
+    def sample_pixel(self, points):
         if len(points.shape) < 2 or points.shape[1] == 1:
-            points = np.array([points,])
+            points = np.floor(np.array([points,]))
+        else:
+            points = np.floor(np.array(points))
 
         # Clamp to image
         points[:,0] = np.maximum(0, np.minimum(self.data.shape[1]-1, points[:,0]))
@@ -159,7 +194,7 @@ class Raster(object):
         p = np.vstack((p, np.ones((1, p.shape[1]))))
         out = self.geo_transform[:2,:] * p
         out = out.transpose()
-        return np.array(out) if out.shape[0] != 1 else np.array(out)[0]
+        return np.array(out)
 
     def proj_to_pixel(self, p):
         """Given either an x,y projection coordinate or list of co-ordinates,
@@ -172,7 +207,7 @@ class Raster(object):
         p = np.vstack((p, np.ones((1, p.shape[1]))))
         out = self.geo_transform_inverse[:2,:] * p
         out = out.transpose()
-        return np.array(out) if out.shape[0] != 1 else np.array(out)[0]
+        return np.array(out)
 
     def proj_to_linear(self, p):
         """Given either an x,y projection coordinate or list of co-ordinates,

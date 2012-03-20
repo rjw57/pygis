@@ -1,0 +1,190 @@
+from pylab import *
+import pygis.raster
+import pygis.mh
+import numpy as np
+import scipy.special as sps
+import scipy.stats as stats
+
+# BNG co-ords of Stonehenge and Avebury
+stonehenge=(412245, 142195)
+avebury=(410235, 169965)
+
+# Load the elevation data
+elev = pygis.raster.open_raster('dtm21.tif')
+grad = pygis.raster.elevation_gradient(elev)
+
+# Specify initial path
+start_path=elev.proj_to_linear((stonehenge, avebury))
+start_cost=pygis.mh.path_cost(start_path, grad)
+current = (start_path, start_cost)
+best = (start_path, start_cost)
+
+def path_elevations(elev, points):
+    e = None
+    dists = None
+    step = np.array(elev.pixel_linear_shape).min()
+    for start, end in zip(points[:-1], points[1:]):
+        ps, ds = pygis.path.points_on_line(start, end, step)
+        es = elev.lanczos_sample(ps)
+        if e is None:
+            e = es
+            dists = ds
+        else:
+            e = hstack((e, es))
+            dists = hstack((dists, dists[-1] + ds))
+    return dists, e
+
+def plot_state():
+    figure(1)
+    clf()
+
+    subplot(211)
+    pygis.raster.show_raster(elev, cmap=cm.gray)
+    plot(stonehenge[0], stonehenge[1], '.r', scalex=False, scaley=False)
+    plot(avebury[0], avebury[1], '.r', scalex=False, scaley=False)
+
+    a = array(start_path)
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    a = array(current[0])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    a = array(best[0])
+    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+
+    subplot(212)
+    plot(*path_elevations(elev, start_path))
+    plot(*path_elevations(elev, current[0]))
+    plot(*path_elevations(elev, best[0]))
+
+def path_distances(path):
+    distances = [0.0]
+    for start, end in zip(path[:-1], path[1:]):
+        delta = end - start
+        distances.append(np.sqrt(np.vdot(delta, delta)))
+    return np.array(distances)
+
+def split_path(path, distance):
+    path = array(path)
+
+    distances = path_distances(path)
+    end = find(distances > distance)[0]
+    start = end - 1
+    assert start >= 0
+    assert end < len(path)
+
+    left = path[:end,:]
+    right = path[end:,:]
+
+    alpha = (distance - distances[start]) / (distances[end] - distances[start])
+    mid = path[start] + alpha * (path[end]-path[start])
+
+    left = vstack((left, [mid,]))
+    right = vstack(([mid,], right))
+
+    return left, right
+
+def mutate_path(path):
+    log_forward = 0.0
+    log_backward = 0.0
+    path = np.array(path)
+
+    # choose which move to make
+    move = np.random.randint(0,3)
+
+    if move == 0:
+        # split move
+
+        # distance to split at
+        distances = path_distances(path)
+        split_dist = np.random.uniform() * distances[-1]
+        head, tail = split_path(path, split_dist)
+
+        # how big is the split segment?
+        seg_delta = tail[1] - head[-1]
+        seg_delta_len = np.sqrt(np.dot(seg_delta, seg_delta))
+        log_forward += log(seg_delta_len)-log(distances[-1])
+
+        sigma = seg_delta_len * 0.25
+        dp = np.random.randn(2) * sigma
+        log_forward += stats.norm.logpdf(dp, 0, sigma).sum()
+        new_p = dp + 0.5*(head[-1] + tail[1])
+
+        new_path = np.vstack((head[:-1], [new_p,], tail[1:]))
+
+        # backward move is prob of choosing this index to remove
+        log_backward -= -log(len(new_path)-2)
+    elif move == 1:
+        # delete move
+        new_path = list(path)
+        if len(path) > 2:
+            del_idx = np.random.randint(1, len(path)-1)
+            log_forward += -log(len(path)-2)
+            del_p = new_path[del_idx]
+            new_path = vstack((new_path[:del_idx], new_path[del_idx+1:]))
+
+            seg_delta = new_path[del_idx] - new_path[del_idx-1]
+            seg_delta_len = np.sqrt(np.dot(seg_delta, seg_delta))
+            distances = path_distances(path)
+            log_backward += log(seg_delta_len)-log(distances[-1])
+
+            sigma = seg_delta_len * 0.25
+            seg_mid = 0.5 * (new_path[del_idx-1] + new_path[del_idx])
+            dp = del_p - seg_mid
+            log_backward += stats.norm.logpdf(dp, 0, sigma).sum()
+    elif move == 2:
+        # replace move
+        new_path = list(path)
+        if len(path) > 2:
+            n_indices = np.random.randint(1, len(path)-1)
+            start_idx = np.random.randint(1, len(path)-n_indices)
+            end_idx = start_idx + n_indices - 1
+            assert start_idx > 0
+            assert end_idx < len(path)-1
+
+            old_section = path[start_idx:end_idx+1]
+            new_section = np.array(old_section, copy=True)
+            sigma = 30
+            for p in new_section:
+                dp = randn(2) * sigma
+                p += dp
+
+            new_path = np.vstack((path[:start_idx], new_section, path[end_idx+1:]))
+    else:
+        assert False
+
+    return new_path, log_forward, log_backward
+
+def sample(path, cost, grad):
+    # propose path
+    new_path, log_forward, log_inv = mutate_path(path)
+    new_cost = pygis.mh.path_cost(new_path, grad)
+
+    log_alpha = log_inv - log_forward
+
+    l = 1.0
+    log_p_new = log(l) - l * new_cost
+    log_p_old = log(l) - l * cost
+    log_alpha += log_p_new - log_p_old
+
+#    log_p_new -= len(new_path)
+#    log_p_old -= len(path)
+
+    alpha = exp(log_alpha)
+    if np.random.uniform() < alpha:
+        return new_path, new_cost
+    else:
+        return path, cost
+
+def tick(its=10):
+    global current, best
+    for i in range(its):
+        current = sample(current[0], current[1], grad)
+        if current[1] < best[1]:
+            best = current
+        if i % 10 == 0:
+            print('current: %s, best: %s' % (current[1], best[1]))
+
+tick()
+plot_state()
+
+# vim:filetype=python:sw=4:sts=4:et
+

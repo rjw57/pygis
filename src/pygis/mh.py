@@ -25,7 +25,7 @@ def line_cost(start, end, grad):
     mid_points = 0.5 * (line_points[:-1] + line_points[1:])
     seg_lengths = grad.linear_scale * (dists[1:] - dists[:-1])
 
-    samples = grad.sample(mid_points)
+    samples = grad.lanczos_sample(mid_points)
     if len(line_points) == 2:
         samples = [samples,]
 
