@@ -36,7 +36,11 @@ def path_elevations(elev, points):
             dists = hstack((dists, dists[-1] + ds))
     return dists, e
 
+best_line = None
+current_line = None
+
 def plot_state():
+    global current_line, best_line, current_elev, best_elev
     figure(1)
     clf()
 
@@ -48,20 +52,42 @@ def plot_state():
     a = array(start_path)
     plot(a[:,0], a[:,1], scalex=False, scaley=False)
     a = array(current[0])
-    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    current_line, = plot(a[:,0], a[:,1], scalex=False, scaley=False)
     a = array(best[0])
-    plot(a[:,0], a[:,1], scalex=False, scaley=False)
+    best_line, = plot(a[:,0], a[:,1], scalex=False, scaley=False)
 
     subplot(212)
     plot(*path_elevations(elev, start_path))
     plot(*path_elevations(elev, current[0]))
     plot(*path_elevations(elev, best[0]))
 
+def update_state():
+    global current, best, it_count
+    global current_line, best_line, current_elev, best_elev
+
+    subplot(211)
+    title('After iteration %s' % (it_count))
+
+    a = array(current[0])
+    current_line.set_xdata(a[:,0])
+    current_line.set_ydata(a[:,1])
+
+    a = array(best[0])
+    best_line.set_xdata(a[:,0])
+    best_line.set_ydata(a[:,1])
+
+    subplot(212)
+    gca().clear()
+    plot(*path_elevations(elev, start_path))
+    plot(*path_elevations(elev, current[0]))
+    plot(*path_elevations(elev, best[0]))
+    draw()
+
 def path_distances(path):
     distances = [0.0]
     for start, end in zip(path[:-1], path[1:]):
         delta = end - start
-        distances.append(np.sqrt(np.vdot(delta, delta)))
+        distances.append(np.sqrt(np.dot(delta, delta)))
     return np.array(distances)
 
 def distance_sample_point(path):
@@ -86,17 +112,26 @@ def mutate_path(path):
     log_backward = 0.0
     new_path = path
 
-    braveness = 0.25
+    braveness = 0.5
     move = np.random.randint(0,4)
 
     if move == 0:
-        mid_size = np.random.randint(2, len(path)+1)
-        mid_start = np.random.randint(0, len(path)-mid_size+1)
-        mid_end = mid_start + mid_size
+        p1, p1_lik = distance_sample_point(path)
+        p2, p2_lik = distance_sample_point(path)
+
+        mid_start = min(p1, p2) - 1
+        mid_end = max(p1, p2) + 1
+        mid_size = mid_end - mid_start
+
+ #       mid_size = np.random.randint(2, len(path)+1)
+ #       mid_start = np.random.randint(0, len(path)-mid_size+1)
+ #       mid_end = mid_start + mid_size
         assert len(path)-1 > 0
         assert len(path)-mid_size+1 > 0
-        log_forward += -np.log(len(path)-1)
-        log_forward += -np.log(len(path)-mid_size+1)
+ #       log_forward += -np.log(len(path)-1)
+ #       log_forward += -np.log(len(path)-mid_size+1)
+
+        log_forward += p1_lik + p2_lik
 
         assert mid_start >= 0
         assert mid_size >= 2
@@ -112,11 +147,11 @@ def mutate_path(path):
         delta = mid[-1] - mid[0]
 
         # replace middle path
-        #lam = len(mid)-2
-        lam = 2
+        lam = len(mid)-2
+        #lam = 2
         n_points = np.random.poisson(lam)
         log_forward += stats.poisson.logpmf(n_points, lam)
-        #n_points = 
+        n_points = len(mid)-2
         step = np.sqrt(np.dot(delta, delta)) / (n_points + 1)
         sigma = step * braveness
         new_mid, _ = pygis.path.points_on_line(mid[0], mid[-1], step)
@@ -126,8 +161,8 @@ def mutate_path(path):
             new_mid[idx] = new_mid[idx] + dp
 
         # how likely are we to generate the middle path again?
-        #lam = len(new_mid)-2
-        lam = 2
+        lam = len(new_mid)-2
+        #lam = 2
         log_backward += stats.poisson.logpmf(len(mid)-2, lam)
         step = np.sqrt(np.dot(delta, delta)) / (len(mid)-2 + 1)
         sigma = step * braveness
@@ -139,8 +174,16 @@ def mutate_path(path):
         new_path = left + new_mid + right
         assert len(new_path)-1 > 0
         assert len(new_path)-len(new_mid)+1 > 0
-        log_backward += -np.log(len(new_path)-1)
-        log_backward += -np.log(len(new_path)-len(new_mid)+1)
+        # ## return idx, np.log(distances[idx]-distances[idx-1]) - np.log(distances[-1])
+        #log_backward += -np.log(len(new_path)-1)
+        #log_backward += -np.log(len(new_path)-len(new_mid)+1)
+
+        distances = path_distances(new_path)
+        idx = len(left) + 1
+        log_backward += np.log(distances[idx]-distances[idx-1]) - np.log(distances[-1])
+        idx = len(left) + len(new_mid) - 1
+        log_backward += np.log(distances[idx]-distances[idx-1]) - np.log(distances[-1])
+
     elif move == 1:
         new_path, new_idx = snip_path(path, uniform())
 
@@ -219,17 +262,25 @@ def sample(path, cost, grad):
     else:
         return path, cost
 
+it_count = 0
 def tick(its=10):
-    global current, best
+    global current, best, it_count
     for i in range(its):
         current = sample(current[0], current[1], grad)
         if current[1] < best[1]:
             best = current
         if i % 10 == 0:
             print('current: %s, best: %s' % (current[1], best[1]))
+        it_count += 1
 
-tick(100)
+def save():
+    global it_count
+    savefig('anim-frame-%06d.png' % (it_count,))
+
 plot_state()
+
+tick(1)
+update_state()
 
 # vim:filetype=python:sw=4:sts=4:et
 
