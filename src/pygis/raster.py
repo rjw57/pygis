@@ -6,8 +6,12 @@ import pylab
 def vlen(p):
     return np.sqrt(np.vdot(p,p))
 
-def open_raster(filename):
-    """Open the raster file from *filename* and return a Raster instance."""
+def open_raster(filename, **kwargs):
+    """Open the raster file from *filename* and return a Raster instance.
+    
+    Any keyword arguments are passed to the Raster() constructor.
+
+    """
 
     raster = gdal.Open(filename)
     if raster is None:
@@ -27,7 +31,7 @@ def open_raster(filename):
 
     spatial_reference = osr.SpatialReference(raster.GetProjection())
 
-    return Raster(data, spatial_reference, geo_transform)
+    return Raster(data, spatial_reference, geo_transform, **kwargs)
 
 def similar_raster(data, prototype, copy=False):
     """Create a raster like *prototype* but with pixel data specified by the
@@ -41,7 +45,9 @@ def similar_raster(data, prototype, copy=False):
         raise RuntimeError('Prototype and data must have equivalent shape. ' + 
                            'Got %s and %s respectively.' % (data.shape, prototype.data.shape))
 
-    return Raster(data, prototype.spatial_reference, prototype.geo_transform, copy=copy)
+    return Raster(
+            data, prototype.spatial_reference, prototype.geo_transform,
+            copy=copy, linear_scale=prototype.linear_scale)
 
 def show_raster(raster, plane=None, **kwargs):
     """Show the raster image *raster* on the current axes. This behaves like
@@ -64,8 +70,17 @@ def show_raster(raster, plane=None, **kwargs):
     else:
         raise RuntimeError('You must specify which plane to display for multi-plane rasters.')
 
+def show_raster_data(data, raster, **kwargs):
+    """Show the raster data *data* on the current axes as if it were the data
+    of *raster*. This is a convenience wrapper around similar_raster(). All
+    keyword arguments and the resulting raster are passed to show_raster().
+    
+    """
+
+    show_raster(similar_raster(data, raster), **kwargs)
+
 class Raster(object):
-    def __init__(self, data, spatial_reference, geo_transform, copy=False):
+    def __init__(self, data, spatial_reference, geo_transform, copy=False, linear_scale=None):
         """Construct a new raster from pixel data and geographic information.
 
         *data* is an array-like object giving the per-pixel data.
@@ -80,13 +95,23 @@ class Raster(object):
         If *copy* is True, the data will be copied, otherwise this class
         contains only a reference to the data.
 
+        If *linear_scale* is None, the linear scale between projection
+        co-ordinate and linear units (usually metres) will be read from the
+        input. Not all input sources include this data. If no information is
+        present, the linear scale is set to 1. Specify a linear scale directly
+        here if you wish to override this behaviour.
+
         """
 
         self.data = np.array(data, copy=copy)
         self.spatial_reference = spatial_reference
         self.geo_transform = np.matrix(geo_transform, copy=True)
         self.geo_transform_inverse = np.linalg.inv(self.geo_transform)
-        self.linear_scale = self.spatial_reference.GetLinearUnits()
+
+        if linear_scale is None:
+            self.linear_scale = self.spatial_reference.GetLinearUnits()
+        else:
+            self.linear_scale = linear_scale
 
         # Calculate the shape of the raster in projection co-ordinates
         bl = self.pixel_to_proj([0,0])
