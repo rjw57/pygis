@@ -176,7 +176,7 @@ def split_move(orig_path):
 
     distance = uniform(0.0, path.length())
     new_idx, new_p = path.split(distance)
-    log_forward += -np.log(path.length())
+    # log_forward += -np.log(path.length())
 
     split_start = path.points[new_idx-1]
     split_end = path.points[new_idx+1]
@@ -189,19 +189,14 @@ def split_move(orig_path):
     log_forward += stats.norm.logpdf(displacement, 0, sigma)
     path.update(new_idx, new_p + displacement * normal)
 
-    mid_dists = 0.5 * (path.dists[:-1] + path.dists[1:])
-    log_backward += \
-            np.log(mid_dists[new_idx] - mid_dists[new_idx-1]) - \
-            np.log(mid_dists[-1] - mid_dists[0])
+    log_backward += -np.log(len(path.points)-2)
 
     return path, log_forward, log_backward
 
 def remove_move(orig_path):
-    """Choose some distance along the path and then the closest point to that
-    distance. Distances are chosen so that the start and end points are not
-    considered.
-
-    Remove the chosen point.
+    """Choose some index along the path and remove the point at that index.
+    
+    We use indices rather than distance to favour removing little cusps.
 
     """
     global bravery
@@ -212,21 +207,17 @@ def remove_move(orig_path):
     if len(path.points) < 3:
         return path, -np.inf, -np.inf
 
-    mid_dists = 0.5 * (path.dists[:-1] + path.dists[1:])
-    distance = uniform(mid_dists[0], mid_dists[-1])
-    closest_idx = np.argmin(np.abs(path.dists - distance))
-    log_forward += \
-            np.log(mid_dists[closest_idx] - mid_dists[closest_idx-1]) - \
-            np.log(mid_dists[-1] - mid_dists[0])
+    rm_idx = np.random.randint(1, len(path.points)-1)
+    log_forward += -np.log(len(path.points)-2)
 
-    assert closest_idx > 0
-    assert closest_idx < len(path.points) - 1
+    assert rm_idx > 0
+    assert rm_idx < len(path.points) - 1
 
-    left = path.points[closest_idx-1]
-    right = path.points[closest_idx+1]
-    removed = path.remove(closest_idx)
+    left = path.points[rm_idx-1]
+    right = path.points[rm_idx+1]
+    removed = path.remove(rm_idx)
 
-    log_backward += -np.log(path.length())
+    # log_backward += -np.log(path.length())
 
     segment = right - left
     segment_len = np.sqrt(np.dot(segment, segment))
@@ -245,6 +236,7 @@ def remove_move(orig_path):
 
 def propose(p):
     move = np.random.randint(0,3)
+    #print(move)
     if move == 0:
         return split_move(p)
     elif move == 1:
@@ -261,6 +253,7 @@ def sample(path, cost, grad):
 
     # propose path
     new_path, log_forward, log_inv = propose(path)
+    #print(log_forward, log_inv)
     new_cost = pygis.mh.path_cost(new_path.points, grad)
 
     log_alpha = log_inv - log_forward
