@@ -112,7 +112,21 @@ class Path(object):
         self.points[idx] = new_p
         self._update_dists()
 
+bravery = 0.5
+
 def update_move(orig_path):
+    """Choose some distance along the path and then the closest point to that
+    distance. Distances are chosen so that the start and end points are not
+    considered.
+
+    Join a line segment between the points on either side of the point to be
+    moved and displace it perpendicular to this line by an amount drawn from a
+    normal distribution with standard deviation proportional to the segment
+    length.
+
+    """
+    global bravery
+
     log_forward = 0.0
     log_backward = 0.0
     path = orig_path.copy()
@@ -136,7 +150,7 @@ def update_move(orig_path):
     segment = right - left
     segment_len = np.sqrt(np.dot(segment, segment))
     normal = np.array((segment[1], -segment[0])) / segment_len
-    sigma = segment_len * 0.2
+    sigma = segment_len * bravery
     displacement = randn() * sigma
 
     factor = stats.norm.logpdf(displacement, 0, sigma)
@@ -148,6 +162,14 @@ def update_move(orig_path):
     return path, log_forward, log_backward
 
 def split_move(orig_path):
+    """Choose some distance along the path and split it at that point. Move the
+    new point perpendicular to the split by an amount drawn from a normal
+    distribution with standard deviation proportional to the original segment
+    length.
+
+    """
+    global bravery
+
     log_forward = 0.0
     log_backward = 0.0
     path = orig_path.copy()
@@ -162,7 +184,7 @@ def split_move(orig_path):
     segment_len = np.sqrt(np.dot(segment, segment))
 
     normal = np.array((segment[1], -segment[0])) / segment_len
-    sigma = segment_len * 0.2
+    sigma = segment_len * bravery
     displacement = randn() * sigma
     log_forward += stats.norm.logpdf(displacement, 0, sigma)
     path.update(new_idx, new_p + displacement * normal)
@@ -175,6 +197,15 @@ def split_move(orig_path):
     return path, log_forward, log_backward
 
 def remove_move(orig_path):
+    """Choose some distance along the path and then the closest point to that
+    distance. Distances are chosen so that the start and end points are not
+    considered.
+
+    Remove the chosen point.
+
+    """
+    global bravery
+
     log_forward = 0.0
     log_backward = 0.0
     path = orig_path.copy()
@@ -207,7 +238,7 @@ def remove_move(orig_path):
 
     displacement_vec = removed - centre
     displacement = np.sqrt(np.dot(displacement_vec, displacement_vec))
-    sigma = segment_len * 0.2
+    sigma = segment_len * bravery
     log_backward += stats.norm.logpdf(displacement, 0, sigma)
 
     return path, log_forward, log_backward
