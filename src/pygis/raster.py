@@ -281,7 +281,7 @@ def elevation_aspect(elevation, grad=None):
     dy = grad.data[:,:,1]
     return similar_raster(np.arctan2(dy, dx), elevation)
 
-def faux_3d(elevation, grad=None):
+def elevation_emboss(elevation, grad=None):
     if grad is None:
         grad = elevation_gradient(elevation)
 
@@ -297,8 +297,11 @@ def faux_3d(elevation, grad=None):
         dyvs[:,:,i] /= mdy
 
     norms = np.cross(dxvs, dyvs)
+    norms_len = np.sqrt(np.sum(norms*norms, axis=2))
+    for i in range(3):
+        norms[:,:,i] /= norms_len
 
-    light = np.array([1,-1,0.5])
+    light = np.array([-1,-1,0.3])
     light /= np.sqrt(np.dot(light,light))
 
     for i in range(3):
