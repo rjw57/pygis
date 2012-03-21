@@ -112,7 +112,7 @@ class Path(object):
         self.points[idx] = new_p
         self._update_dists()
 
-bravery = 0.5
+bravery = 0.25
 
 def update_move(orig_path):
     """Choose some distance along the path and then the closest point to that
