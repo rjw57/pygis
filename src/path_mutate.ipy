@@ -112,12 +112,13 @@ class Path(object):
         self.points[idx] = new_p
         self._update_dists()
 
-bravery = 0.5
+bravery = 0.1
 
 def update_move(orig_path):
     """Choose some distance along the path and then the closest point to that
     distance. Distances are chosen so that the start and end points are not
-    considered.
+    considered. Do this twice and change all the points spanned by those two
+    distances.
 
     Join a line segment between the points on either side of the point to be
     moved and displace it perpendicular to this line by an amount drawn from a
@@ -134,30 +135,41 @@ def update_move(orig_path):
         return path, -np.inf, -np.inf
 
     mid_dists = 0.5 * (path.dists[:-1] + path.dists[1:])
-    distance = uniform(mid_dists[0], mid_dists[-1])
-    closest_idx = np.argmin(np.abs(path.dists - distance))
+    distance1 = uniform(mid_dists[0], mid_dists[-1])
+    distance2 = uniform(mid_dists[0], mid_dists[-1])
+
+    closest_idx1 = np.argmin(np.abs(path.dists - distance1))
+    closest_idx2 = np.argmin(np.abs(path.dists - distance2))
 
     factor = \
-            np.log(mid_dists[closest_idx] - mid_dists[closest_idx-1]) - \
+            np.log(mid_dists[closest_idx1] - mid_dists[closest_idx1-1]) - \
+            np.log(mid_dists[-1] - mid_dists[0])
+    factor += \
+            np.log(mid_dists[closest_idx2] - mid_dists[closest_idx2-1]) - \
             np.log(mid_dists[-1] - mid_dists[0])
     log_forward += factor
     log_backward += factor
 
-    left = path.points[closest_idx-1]
-    right = path.points[closest_idx+1]
-    to_change = path.points[closest_idx]
+    start_idx = min(closest_idx1, closest_idx2)
+    end_idx = max(closest_idx1, closest_idx2)
+
+    left = path.points[start_idx-1]
+    right = path.points[end_idx+1]
 
     segment = right - left
     segment_len = np.sqrt(np.dot(segment, segment))
     normal = np.array((segment[1], -segment[0])) / segment_len
-    sigma = segment_len * bravery
-    displacement = randn() * sigma
+    sigma = segment_len * bravery / (end_idx - start_idx + 2)
 
-    factor = stats.norm.logpdf(displacement, 0, sigma)
-    log_forward += factor
-    log_backward += factor
+    for idx in range(start_idx, end_idx+1):
+        to_change = path.points[idx]
+        displacement = randn() * sigma
 
-    path.update(closest_idx, displacement + to_change)
+        factor = stats.norm.logpdf(displacement, 0, sigma)
+        log_forward += factor
+        log_backward += factor
+
+        path.update(idx, displacement + to_change)
 
     return path, log_forward, log_backward
 
