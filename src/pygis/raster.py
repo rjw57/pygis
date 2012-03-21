@@ -166,9 +166,9 @@ class Raster(object):
 
     def sample_pixel(self, points):
         if len(points.shape) < 2 or points.shape[1] == 1:
-            points = np.floor(np.array([points,]))
+            points = np.round(np.array([points,]))
         else:
-            points = np.floor(np.array(points))
+            points = np.round(np.array(points))
 
         # Clamp to image
         points[:,0] = np.maximum(0, np.minimum(self.data.shape[1]-1, points[:,0]))
