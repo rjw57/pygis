@@ -99,5 +99,15 @@ def run(state, its=100, **kwargs):
 state = Sampler(start_path, grad)
 run(state, 0)
 
+sampled_paths = []
+def sample_path():
+    state = Sampler(start_path, grad)
+    for i in xrange(1000):
+        state.sample()
+    print('after %i iterations, alpha: %.3f, current: %.1f, best: %.1f' % \
+            (state.samples, float(state.accepts) / state.samples, state.current[1], state.best[1]))
+    sampled_paths.append(state.current)
+    plot_paths([start_path,] + [x[0].points for x in sampled_paths])
+
 # vim:filetype=python:sw=4:sts=4:et
 
