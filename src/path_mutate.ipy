@@ -44,49 +44,60 @@ def path_elevations(elev, points):
             dists = hstack((dists, dists[-1] + ds))
     return dists, e
 
-accepts = 0
-samples = 0
-def sample(path, cost, grad):
-    global accepts, samples
+class Sampler(object):
+    def __init__(self, start_path, grad):
+        self.start_path = start_path
+        self.grad = grad
 
-    # propose path
-    new_path, log_forward, log_inv = path_planning.propose(path)
-    #print(log_forward, log_inv)
-    new_cost = pygis.mh.path_cost(new_path.points, grad)
+        self.current = (path_planning.Path(start_path), pygis.mh.path_cost(start_path, grad))
+        self.best = (path_planning.Path(start_path), pygis.mh.path_cost(start_path, grad))
+        self.it_count = 0
 
-    log_alpha = log_inv - log_forward
+        self.accepts = 0
+        self.samples = 0
 
-    l = 1.0
-    log_p_new = log(l) - l * new_cost
-    log_p_old = log(l) - l * cost
-    log_alpha += log_p_new - log_p_old
+    def sample(self):
+        # propose path
+        new_path, log_forward, log_inv = path_planning.propose(self.current[0])
+        #print(log_forward, log_inv)
+        new_cost = pygis.mh.path_cost(new_path.points, self.grad)
 
-    samples += 1
-    alpha = exp(log_alpha)
-    if np.random.uniform() < alpha:
-        accepts += 1
-        return new_path, new_cost
-    else:
-        return path, cost
+        log_alpha = log_inv - log_forward
 
-current = (path_planning.Path(start_path), pygis.mh.path_cost(start_path, grad))
-best = (path_planning.Path(start_path), pygis.mh.path_cost(start_path, grad))
-it_count = 0
-def tick(its=10):
-    global current, best, it_count
+        l = 1.0
+        log_p_new = log(l) - l * new_cost
+        log_p_old = log(l) - l * self.current[1]
+        log_alpha += log_p_new - log_p_old
+
+        self.samples += 1
+        alpha = exp(log_alpha)
+        if np.random.uniform() < alpha:
+            self.accepts += 1
+            self.current = (new_path, new_cost)
+
+        if self.current[1] < self.best[1]:
+            self.best = self.current
+        
+        return self.current
+
+def tick(state, its=10, quiet=False):
     for i in range(its):
-        current = sample(current[0], current[1], grad)
-        if current[1] < best[1]:
-            best = current
-        if i % 10 == 0:
-            print('alpha: %.3f, current: %.1f, best: %.1f' % (float(accepts) / samples, current[1], best[1]))
-        it_count += 1
+        state.sample()
 
-def run(its=100):
-    tick(its)
-    plot_paths([start_path, current[0].points, best[0].points])
+        if not quiet and i % 10 == 0:
+            print('alpha: %.3f, current: %.1f, best: %.1f' % \
+                    (float(state.accepts) / state.samples, state.current[1], state.best[1]))
 
-run(0)
+    if state.samples > 0:
+        print('after %i iterations, alpha: %.3f, current: %.1f, best: %.1f' % \
+                (state.samples, float(state.accepts) / state.samples, state.current[1], state.best[1]))
+
+def run(state, its=100, **kwargs):
+    tick(state, its, **kwargs)
+    plot_paths([start_path, state.current[0].points, state.best[0].points])
+
+state = Sampler(start_path, grad)
+run(state, 0)
 
 # vim:filetype=python:sw=4:sts=4:et
 
