@@ -119,7 +119,7 @@ def update_move(orig_path):
 
     return path, log_forward, log_backward
 
-bravery = 0.25
+bravery = 0.2
 
 def split_move(orig_path):
     """Choose some distance along the path and split it at that point. Move the
