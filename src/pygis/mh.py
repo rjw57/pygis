@@ -1,24 +1,6 @@
 from pylab import *
+import numpy as np
 import pygis.path
-
-def vlen(vec):
-    """Return the Euclidean length of the vector vec."""
-    return sqrt(vdot(vec, vec))
-
-def line_cost(start, end, grad):
-    """Given some gradient raster, calculate the cost of the line start -> end.
-    
-    """
-
-    start = array(start)
-    end = array(end)
-    delta = end - start
-    delta_len = vlen(delta)
-    direction = delta / delta_len
-
-    step = array(grad.pixel_linear_shape).min()
-    line_points, dists = pygis.path.points_on_line(start, end, step)
-    return integrate_cost(line_points, grad)
 
 def integrate_cost(points, grad):
     """Given some gradient raster, calculate the cost of the lines segments
@@ -31,29 +13,31 @@ def integrate_cost(points, grad):
     assert len(points.shape) > 1 and points.shape[0] > 1
 
     midpoints = 0.5*(points[:-1] + points[1:])
-    deltas = points[1:] - points[:-1]
-    delta_lengths = np.sqrt((deltas * deltas).sum(axis=1)).transpose()
-    directions = np.array(deltas, copy=True)
-    directions[:,0] /= delta_lengths
-    directions[:,1] /= delta_lengths
+    directions = points[1:] - points[:-1]
+    segment_lengths = np.sqrt((directions * directions).sum(axis=1)).transpose()
+    directions[:,0] /= segment_lengths
+    directions[:,1] /= segment_lengths
 
     samples = grad.lanczos_sample(midpoints)
     if len(points) == 2:
         samples = [samples,]
+    samples = np.array(samples)
+    
+    # samples: Nx2 array of gradient samples
+    # directions: Nx2 array of normalised segment directions
+    # segment_lengths: Nx2 array of segment horizontal lengths
 
-    cost = 0.0
-    for direction, dh, gradient in zip(directions, delta_lengths, samples):
-        # get vert. distance in metres
-        dv = vdot(gradient, direction) * dh
+    # calculate subjective slope
+    subj_slope = (samples * directions).sum(axis=1)
 
-        # get linear distance
-        d = vlen(array(dh, dv))
+    # hence vertical displacement
+    vdisp = subj_slope * segment_lengths
 
-        # calculate the subjective gradient
-        subj_gradient = vdot(gradient, direction)
+    # hence Euclidean displacement
+    disp = np.sqrt(vdisp*vdisp + segment_lengths*segment_lengths)
 
-        # increase cost
-        cost += abs(subj_gradient) * d
+    # cost is distance * absolute slope
+    cost = (disp * np.abs(subj_slope)).sum()
 
     return cost
 
@@ -62,12 +46,27 @@ def path_cost(points, grad):
 
     """
 
-    step = array(grad.pixel_linear_shape).min()
+    step = np.abs(array(grad.pixel_proj_shape)).min()
     int_points = []
     for start, end in zip(points[:-1], points[1:]):
-        np, _ = pygis.path.points_on_line(start, end, step)
-        int_points.extend(np[:-1])
+        pts, _ = pygis.path.points_on_line(start, end, step)
+        int_points.extend(pts[:-1])
     int_points.append(points[-1])
     return integrate_cost(int_points, grad)
+
+def line_cost(start, end, grad):
+    """Given some gradient raster, calculate the cost of the line start -> end.
+    
+    """
+
+    start = array(start)
+    end = array(end)
+    delta = end - start
+    delta_len = np.sqrt(np.dot(delta, delta))
+    direction = delta / delta_len
+
+    step = np.abs(array(grad.pixel_proj_shape)).min()
+    line_points, dists = pygis.path.points_on_line(start, end, step)
+    return integrate_cost(line_points, grad)
 
 # vim:filetype=python:sts=4:et:ts=4:sw=4
