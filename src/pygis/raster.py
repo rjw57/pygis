@@ -161,7 +161,7 @@ class Raster(object):
     def lanczos_sample(self, points):
         pixels = self.proj_to_pixel(points)
         int_pixels = np.floor(pixels)
-        a = 2
+        a = 1
         samples = None
         norm = None
         for dx in range(-a, a+1):
@@ -169,11 +169,16 @@ class Raster(object):
                 coords = np.array((int_pixels[:,0] + dx, int_pixels[:,1] + dy)).transpose()
                 delta = pixels - coords
 
-                x_kernel = np.sinc(delta[:,0]) * np.sinc(delta[:,0] / a)
-                y_kernel = np.sinc(delta[:,1]) * np.sinc(delta[:,1] / a)
+                #x_kernel = np.sinc(delta[:,0]) * np.sinc(delta[:,0] / a)
+                #y_kernel = np.sinc(delta[:,1]) * np.sinc(delta[:,1] / a)
+
+                # optimised version of the kernel calculation
+                k = a * np.sin(np.pi * delta) * np.sin((np.pi / a) * delta)
+                denom = (np.pi*np.pi) * (delta*delta)
+                k = np.where(denom != 0.0, k / denom, 1.0)
 
                 vals = np.array(self.sample_pixel(coords))
-                kernel = x_kernel * y_kernel
+                kernel = k.prod(axis=1)#x_kernel * y_kernel
 
                 if len(vals.shape) > 1 and vals.shape[1] > 1:
                     kernel = np.tile(kernel, (vals.shape[1],1)).transpose()
