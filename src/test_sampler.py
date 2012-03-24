@@ -2,6 +2,7 @@ import pygis.raster
 import pygis.mh
 import numpy as np
 import scipy.stats as stats
+from pylab import *
 
 from pathplanning import Path, Sampler
 
@@ -26,6 +27,7 @@ def plot_paths(paths):
     figure(1)
     clf()
 
+    subplot(211)
     pygis.raster.show_raster(elev, cmap=cm.gray)
     plot(stonehenge[0], stonehenge[1], '.r', scalex=False, scaley=False)
     plot(avebury[0], avebury[1], '.r', scalex=False, scaley=False)
@@ -33,6 +35,11 @@ def plot_paths(paths):
     for p in paths:
         a = array(p)
         plot(a[:,0], a[:,1], scalex=False, scaley=False)
+
+    subplot(212)
+    for p in paths:
+        ds, ps = path_elevations(elev, p)
+        plot(ds, ps)
 
 def path_elevations(elev, points):
     e = None
@@ -49,40 +56,22 @@ def path_elevations(elev, points):
             dists = hstack((dists, dists[-1] + ds))
     return dists, e
 
-def tick(state, its=10, quiet=False):
-    for i in range(its):
-        state.sample()
-
-        if not quiet and i % 10 == 0:
-            print('alpha: %.3f, current: %.1f, best: %.1f' % \
-                    (float(state.accepts) / state.samples, state.current[1], state.best[1]))
-
-    if state.samples > 0:
-        print('after %i iterations, alpha: %.3f, current: %.1f, best: %.1f' % \
-                (state.samples, float(state.accepts) / state.samples, state.current[1], state.best[1]))
-
-def run(state, its=100, **kwargs):
-    tick(state, its, **kwargs)
-    plot_paths([start_path, state.current[0].points, state.best[0].points])
-
-#state = Sampler(start_path, grad)
-#run(state, 0)
-
-sampled_paths = []
 def sample_path():
     state = Sampler(start_path, path_cost)
-    for i in xrange(500):
+    print('Sampling...')
+    for i in xrange(150):
         state.sample()
 
         if i % 10 == 0:
-            print('alpha: %.3f, current: %.1f, best: %.1f' % \
-                    (float(state.accepts) / state.samples, state.current[1], state.best[1]))
+            print('i: %i, alpha: %.3f, current: %.1f, best: %.1f' % \
+                    (i, float(state.accepts) / state.samples, state.current[1], state.best[1]))
     print('after %i iterations, alpha: %.3f, current: %.1f, best: %.1f' % \
             (state.samples, float(state.accepts) / state.samples, state.current[1], state.best[1]))
-    sampled_paths.append(state.current)
-    # plot_paths([start_path,] + [x[0].points for x in sampled_paths])
+    #sampled_paths.append(state.current)
+    plot_paths([start_path.points, state.best[0].points])
 
 sample_path()
+show()
 
 # vim:filetype=python:sw=4:sts=4:et
 
