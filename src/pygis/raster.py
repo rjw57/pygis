@@ -18,6 +18,11 @@ def open_raster(filename, **kwargs):
         raise RuntimeError('Could not open file: %s' % (filename,))
 
     data = np.array(raster.ReadAsArray(), dtype=float)
+    if len(data.shape) > 2:
+        # cope with odd ordering of arrays
+        # 0,1,2 -> 1,2,0
+        data = np.swapaxes(data, 0, 1)
+        data = np.swapaxes(data, 1, 2)
 
     # HACK: Detect 'None' values and replace them with NAN. It's mucky :(
     data[data <= -1.0e30] = 0# np.nan
