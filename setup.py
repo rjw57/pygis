@@ -12,9 +12,11 @@ install_requires = [
 #    'anyjson',
 #    'argparse',
 #    'html',
-#    'gdal',
 #    'pyshp',
 #    'pyproj',
+    'gdal',
+    'numpy',
+    'scipy',
 ]
 
 
