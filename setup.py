@@ -17,6 +17,7 @@ install_requires = [
     'gdal',
     'numpy',
     'scipy',
+    'pyopencl',
 ]
 
 
@@ -39,11 +40,13 @@ setup(name='pygis',
     url='http://github.com/rjw57/pygis',
     license='APACHE-2.0',
     packages=find_packages('src'),
-    package_dir = {'': 'src'},include_package_data=True,
+    package_dir = {'': 'src'},
+    package_data = {'pygis': ['*.cl']},
+    include_package_data=True,
     zip_safe=False,
     install_requires=install_requires,
     entry_points={
-        'console_scripts':
-            ['shp2kml=pygis.shp2kml:main', 'shp2json=pygis.shp2json:main']
+#        'console_scripts':
+#            ['shp2kml=pygis.shp2kml:main', 'shp2json=pygis.shp2json:main']
     }
 )

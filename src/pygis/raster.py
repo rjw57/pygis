@@ -3,6 +3,10 @@ from osgeo import osr
 import numpy as np
 import pylab
 
+import pyopencl.array
+
+from _opencl import hill_shade as cl_hill_shade
+
 def vlen(p):
     return np.sqrt(np.vdot(p,p))
 
@@ -17,7 +21,7 @@ def open_raster(filename, **kwargs):
     if raster is None:
         raise RuntimeError('Could not open file: %s' % (filename,))
 
-    data = np.array(raster.ReadAsArray(), dtype=float)
+    data = np.array(raster.ReadAsArray(), dtype=np.float32)
     if len(data.shape) > 2:
         # cope with odd ordering of arrays
         # 0,1,2 -> 1,2,0
@@ -108,7 +112,10 @@ class Raster(object):
 
         """
 
-        self.data = np.array(data, copy=copy)
+        if copy:
+            self.data = np.array(data, copy=True)
+        else:
+            self.data = data
         self.spatial_reference = spatial_reference
         self.geo_transform = np.matrix(geo_transform, copy=True)
         self.geo_transform_inverse = np.linalg.inv(self.geo_transform)
@@ -316,32 +323,10 @@ def elevation_aspect(elevation, grad=None):
     dy = grad.data[:,:,1]
     return similar_raster(np.arctan2(dy, dx), elevation)
 
-def elevation_emboss(elevation, grad=None):
-    if grad is None:
-        grad = elevation_gradient(elevation)
-
-    shape = grad.data.shape[:2]
-    dxvs = np.dstack((np.ones(shape), np.zeros(shape), grad.data[:,:,0]))
-    dyvs = np.dstack((np.zeros(shape), np.ones(shape), grad.data[:,:,1]))
-
-    mdx=np.sqrt(np.sum(dxvs*dxvs, axis=2))
-    mdy=np.sqrt(np.sum(dyvs*dyvs, axis=2))
-
-    for i in range(3):
-        dxvs[:,:,i] /= mdx
-        dyvs[:,:,i] /= mdy
-
-    norms = np.cross(dxvs, dyvs)
-    norms_len = np.sqrt(np.sum(norms*norms, axis=2))
-    for i in range(3):
-        norms[:,:,i] /= norms_len
-
-    light = np.array([-1,-1,0.3])
-    light /= np.sqrt(np.dot(light,light))
-
-    for i in range(3):
-        norms[:,:,i] *= light[i]
-
-    return similar_raster(np.maximum(0, np.sum(norms, axis=2)), grad)
+def elevation_hill_shade(elevation, grad=None):
+    return similar_raster(
+            cl_hill_shade(elevation),
+            elevation,
+            copy=True)
 
 # vim:sw=4:sts=4:et
