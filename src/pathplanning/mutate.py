@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats as stats
 
-def update_move(orig_path):
+def update_move(orig_path, bravery):
     """Choose some distance along the path and then the closest point to that
     distance. Distances are chosen so that the start and end points are not
     considered.
@@ -12,8 +12,6 @@ def update_move(orig_path):
     length.
 
     """
-    global bravery
-
     log_forward = 0.0
     log_backward = 0.0
     path = orig_path.copy()
@@ -48,16 +46,13 @@ def update_move(orig_path):
 
     return path, log_forward, log_backward
 
-bravery = 0.2
-
-def split_move(orig_path):
+def split_move(orig_path, bravery):
     """Choose some distance along the path and split it at that point. Move the
     new point perpendicular to the split by an amount drawn from a normal
     distribution with standard deviation proportional to the original segment
     length.
 
     """
-    global bravery
 
     log_forward = 0.0
     log_backward = 0.0
@@ -82,13 +77,12 @@ def split_move(orig_path):
 
     return path, log_forward, log_backward
 
-def remove_move(orig_path):
+def remove_move(orig_path, bravery):
     """Choose some index along the path and remove the point at that index.
     
     We use indices rather than distance to favour removing little cusps.
 
     """
-    global bravery
 
     log_forward = 0.0
     log_backward = 0.0
@@ -123,7 +117,7 @@ def remove_move(orig_path):
 
     return path, log_forward, log_backward
 
-def mutate_path(p):
+def mutate_path(p, bravery=0.2):
     """Propose a mutation to path *p* and return a tuple containing mutated
     path, the log likelihood of the forward move which generated the proposal
     and the log likelihood of proposing the original path from the mutated
@@ -133,10 +127,10 @@ def mutate_path(p):
 
     move = np.random.randint(0,3)
     if move == 0:
-        return split_move(p)
+        return split_move(p, bravery)
     elif move == 1:
-        return remove_move(p)
+        return remove_move(p, bravery)
     elif move == 2:
-        return update_move(p)
+        return update_move(p, bravery)
     else:
         assert False

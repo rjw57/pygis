@@ -26,8 +26,6 @@ def path_cost(path):
 def plot_paths(paths):
     figure(1)
     clf()
-
-    subplot(211)
     pygis.raster.show_raster(elev, cmap=cm.gray)
     plot(stonehenge[0], stonehenge[1], '.r', scalex=False, scaley=False)
     plot(avebury[0], avebury[1], '.r', scalex=False, scaley=False)
@@ -36,7 +34,8 @@ def plot_paths(paths):
         a = array(p)
         plot(a[:,0], a[:,1], scalex=False, scaley=False)
 
-    subplot(212)
+    figure(2)
+    clf()
     for p in paths:
         ds, ps = path_elevations(elev, p)
         plot(ds, ps)
@@ -59,19 +58,28 @@ def path_elevations(elev, points):
 def sample_path():
     state = Sampler(start_path, path_cost)
     print('Sampling...')
-    for i in xrange(150):
+    for i in xrange(1000):
         state.sample()
 
-        if i % 10 == 0:
+        if i % 50 == 0:
             print('i: %i, alpha: %.3f, current: %.1f, best: %.1f' % \
                     (i, float(state.accepts) / state.samples, state.current[1], state.best[1]))
     print('after %i iterations, alpha: %.3f, current: %.1f, best: %.1f' % \
             (state.samples, float(state.accepts) / state.samples, state.current[1], state.best[1]))
     #sampled_paths.append(state.current)
-    plot_paths([start_path.points, state.best[0].points])
+    #plot_paths([start_path.points, state.best[0].points])
+    return state.current
 
-sample_path()
+import json
+paths = json.load(open('sampled-paths.json'))
+for i in xrange(8000):
+    path, cost = sample_path()
+    path = [list(x) for x in path.points]
+    paths.append({'path': path, 'cost': cost})
+    json.dump(paths, open('sampled-paths.json', 'w'))
+plot_paths([start_path.points,] + [x['path'] for x in paths])
 show()
+#show()
 
 # vim:filetype=python:sw=4:sts=4:et
 

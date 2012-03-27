@@ -37,7 +37,8 @@ def integrate_cost(points, grad):
     disp = np.sqrt(vdisp*vdisp + segment_lengths*segment_lengths)
 
     # cost is distance * absolute slope
-    cost = (disp * np.abs(subj_slope)).sum()
+    #cost = (disp * np.abs(subj_slope)).sum()
+    cost = (disp * np.exp(30*np.abs(subj_slope))).sum()
 
     return cost
 

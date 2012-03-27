@@ -2,9 +2,10 @@ import numpy as np
 from pathplanning import Path, mutate_path
 
 class Sampler(object):
-    def __init__(self, start_path, cost_cb):
+    def __init__(self, start_path, cost_cb, bravery=0.2):
         self.start_path = start_path
         self.cost_cb = cost_cb
+        self.bravery = bravery
 
         self.current = (start_path.copy(), cost_cb(start_path))
         self.best = tuple(self.current)
@@ -15,7 +16,7 @@ class Sampler(object):
 
     def sample(self):
         # mutate_path path
-        new_path, log_forward, log_inv = mutate_path(self.current[0])
+        new_path, log_forward, log_inv = mutate_path(self.current[0], bravery=self.bravery)
         new_cost = self.cost_cb(new_path)
 
         log_alpha = log_inv - log_forward

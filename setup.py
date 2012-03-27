@@ -9,12 +9,12 @@ NEWS = open(os.path.join(here, 'NEWS.txt')).read()
 version = '0.1'
 
 install_requires = [
-    'anyjson',
-    'argparse',
-    'html',
-    'gdal',
-    'pyshp',
-    'pyproj',
+#    'anyjson',
+#    'argparse',
+#    'html',
+#    'gdal',
+#    'pyshp',
+#    'pyproj',
 ]
 
 
