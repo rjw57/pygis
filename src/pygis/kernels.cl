@@ -232,9 +232,9 @@ __kernel void image_hill_shade(
     float4 dx, dy;
     gradient(input, pixel, &dx, &dy, pixel_to_linear_scale);
 
-    float3 xgrad = (float3)(1.f, 0.f, dx.x);
-    float3 ygrad = (float3)(0.f, 1.f, dy.x);
-    float4 normal = normalize((float4)(cross(xgrad, ygrad), 0.f));
+    float4 xgrad = (float4)(1.f, 0.f, dx.x, 0.f);
+    float4 ygrad = (float4)(0.f, 1.f, dy.x, 0.f);
+    float4 normal = normalize(cross(xgrad, ygrad));
     float4 light = normalize((float4)(-1.f, -1.f, 0.5f, 0.f));
 
     float shade = clamp(dot(normal, light), 0.f, 1.f);
