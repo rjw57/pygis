@@ -13,3 +13,4 @@ eggs/
 parts/
 .*.swp
 /ipython-notebooks/
+/docs/
