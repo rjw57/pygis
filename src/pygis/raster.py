@@ -329,4 +329,31 @@ def elevation_hill_shade(elevation, grad=None):
             elevation,
             copy=True)
 
+    if grad is None:
+        grad = elevation_gradient(elevation)
+
+    shape = grad.data.shape[:2]
+    dxvs = np.dstack((np.ones(shape), np.zeros(shape), grad.data[:,:,0]))
+    dyvs = np.dstack((np.zeros(shape), np.ones(shape), grad.data[:,:,1]))
+
+    mdx=np.sqrt(np.sum(dxvs*dxvs, axis=2))
+    mdy=np.sqrt(np.sum(dyvs*dyvs, axis=2))
+
+    for i in range(3):
+        dxvs[:,:,i] /= mdx
+        dyvs[:,:,i] /= mdy
+
+    norms = np.cross(dxvs, dyvs)
+    norms_len = np.sqrt(np.sum(norms*norms, axis=2))
+    for i in range(3):
+        norms[:,:,i] /= norms_len
+
+    light = np.array([-1,-1,0.3])
+    light /= np.sqrt(np.dot(light,light))
+
+    for i in range(3):
+        norms[:,:,i] *= light[i]
+
+    return similar_raster(np.maximum(0, np.sum(norms, axis=2)), grad)
+
 # vim:sw=4:sts=4:et
