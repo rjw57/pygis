@@ -6,6 +6,11 @@ To create a buildout,
   $ python bootstrap.py
   $ bin/buildout
 
+Documentation HOWTO
+===================
+
+After creating the buildout, run bin/sphinxbuilder.
+
 Release HOWTO
 =============
 

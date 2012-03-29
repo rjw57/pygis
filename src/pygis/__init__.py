@@ -1,4 +1,3 @@
-# Example package with a console entry point
+import raster
 
-def main():
-    print "Hello World"
+__all__ = [ 'raster' ]

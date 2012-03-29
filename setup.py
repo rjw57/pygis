@@ -2,11 +2,10 @@ from setuptools import setup, find_packages
 import sys, os
 
 here = os.path.abspath(os.path.dirname(__file__))
-README = open(os.path.join(here, 'README.rst')).read()
-NEWS = open(os.path.join(here, 'NEWS.txt')).read()
+README = open(os.path.join(here, 'README')).read()
+NEWS = open(os.path.join(here, 'NEWS.rst')).read()
 
-
-version = '0.1'
+from release_info import version
 
 install_requires = [
 #    'anyjson',
@@ -19,7 +18,6 @@ install_requires = [
     'scipy',
     'pyopencl',
 ]
-
 
 setup(name='pygis',
     version=version,
@@ -39,9 +37,9 @@ setup(name='pygis',
     author_email='rjw57@cantab.net',
     url='http://github.com/rjw57/pygis',
     license='APACHE-2.0',
-    packages=find_packages('src'),
+    packages=['pygis',],  #find_packages(os.path.join(here, 'src')),
     package_dir = {'': 'src'},
-    package_data = {'pygis': ['*.cl']},
+    package_data = {'pygis': ['kernels.cl']},
     include_package_data=True,
     zip_safe=False,
     install_requires=install_requires,

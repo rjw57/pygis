@@ -1,6 +1,14 @@
 News
 ====
 
+0.2
+---
+
+*Release date: 29-Mar-2012*
+
+* Initial release of raster support
+* Add sphinx documentation
+
 0.1
 ---
 
