@@ -282,6 +282,26 @@ def open_raster(filename, window=None, **kwargs):
 
     return Raster(data, spatial_reference, geo_transform, **kwargs)
 
+def write_raster(raster, filename):
+    """Write a raster to filename in the GeoTIFF format."""
+
+    drv = gdal.GetDriverByName('GTiff')
+    n_bands = raster.data.shape[2] if len(raster.data.shape) > 2 else 1
+    ds = drv.Create(filename, raster.data.shape[1], raster.data.shape[0], n_bands, gdal.GDT_Float32)
+    ds.SetProjection(raster.projection_wkt())
+
+    gt = raster.geo_transform
+    gt_list = [gt[0,2], gt[0,0], gt[0,1], gt[1,2], gt[1,0], gt[1,1]]
+    ds.SetGeoTransform(gt_list)
+
+    for band_idx in xrange(n_bands):
+        band = ds.GetRasterBand(band_idx+1)
+        band.SetNoDataValue(np.nan)
+        if len(raster.data.shape) > 2:
+            band.WriteArray(raster.data[:,:,band_idx])
+        else:
+            band.WriteArray(raster.data)
+
 def similar_raster(data, prototype, copy=False):
     """Create a raster like *prototype* but with pixel data specified by the
     array *data*. Raises a RuntimeError if the shapes of data and
