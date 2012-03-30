@@ -76,18 +76,19 @@ def hill_shade(elevation):
             cl.ImageFormat(cl.channel_order.INTENSITY, cl.channel_type.FLOAT),
             shape = (w, h))
 
-    # Just to annoy us, this is the wrong blooming way round
     pixel_shape = struct.pack('ff', px, py)
-
-    event = kernel(
-            command_queue(), (w, h), None,
-            elev_image, hs_image, pixel_shape)
+    event = kernel(command_queue(), (w, h), None, elev_image, hs_image, pixel_shape)
 
     rv = cl.enqueue_map_image(
             command_queue(),
             hs_image,
             cl.map_flags.READ,
             (0,0), (w,h),
-            elevation.data.shape, np.float32, 'C')
+            elevation.data.shape, np.float32, 'C',
+            wait_for = (event,),
+            is_blocking = True)
 
-    return rv[0]
+    data = rv[0].copy()
+    rv[0].base.release(command_queue())
+
+    return data

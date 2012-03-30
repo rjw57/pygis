@@ -198,8 +198,8 @@ __kernel void image_aspect(
     float2 pixel_to_linear_scale)
 {
     int2 pixel = {
-        get_global_id(0) * get_local_size(0) + get_local_id(0),
-        get_global_id(1) * get_local_size(1) + get_local_id(1),
+        get_global_id(0),
+        get_global_id(1),
     };
 
     if(pixel.x >= get_image_width(input))
@@ -220,8 +220,8 @@ __kernel void image_hill_shade(
     float2 pixel_to_linear_scale)
 {
     int2 pixel = {
-        get_global_id(0) * get_local_size(0) + get_local_id(0),
-        get_global_id(1) * get_local_size(1) + get_local_id(1),
+        get_global_id(0),
+        get_global_id(1),
     };
 
     if(pixel.x >= get_image_width(input))
