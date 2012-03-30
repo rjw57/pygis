@@ -54,7 +54,7 @@ def program():
     if _program is not None:
         return _program
     elif _have_opencl:
-        src = ''.join(open(os.path.join(os.path.dirname(__file__), 'kernels.cl')).readlines())
+        src = ''.join(open(pygis.data_file('kernels.cl')).readlines())
         _program = cl.Program(context(), src)
         _program.build()
         print(_program.get_build_info(_program.devices[0], cl.program_build_info.LOG))
