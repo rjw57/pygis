@@ -11,7 +11,10 @@ implementation is software only since OpenCL allows an algorithm to be compiled
 in its entirety to machine code whereas the numpy implementation will always
 have to restrict itself to the numpy operations.
 
-.. note::
-    Currently there is no way in which OpenCL can be enabled or disabled at
-    runtime or its presence queried. The OpenCL support is still experimental
-    and in flux.
+Disabling OpenCL
+----------------
+
+If the :py:mod:`pyopencl` module could be loaded, OpenCL will automatically be
+used. Setting :py:attr:`pygis.use_opencl` to *False* can be used to override this
+behaviour. The default behaviour can be restored by setting this attribute back
+to *True*.
