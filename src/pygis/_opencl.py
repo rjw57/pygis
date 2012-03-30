@@ -1,12 +1,13 @@
 from __future__ import print_function
 
-_have_opencl = False
+import pygis
+
+_have_opencl = True
 
 try:
     import pyopencl as cl
-    _have_opencl = True
 except ImportError:
-    pass
+    _have_opencl = False
 
 import os
 import struct
@@ -18,6 +19,9 @@ class OpenCLNotPresentError(Exception):
 
 _context = None
 def context():
+    if not pygis.use_opencl:
+        raise OpenCLNotPresentError()
+
     global _context
     if _context is not None:
         return _context
@@ -29,6 +33,9 @@ def context():
 
 _command_queue = None
 def command_queue():
+    if not pygis.use_opencl:
+        raise OpenCLNotPresentError()
+
     global _command_queue
     if _command_queue is not None:
         return _command_queue
@@ -40,6 +47,9 @@ def command_queue():
 
 _program = None
 def program():
+    if not pygis.use_opencl:
+        raise OpenCLNotPresentError()
+
     global _program
     if _program is not None:
         return _program
@@ -59,28 +69,30 @@ def hill_shade(elevation):
     """
 
     kernel = program().image_hill_shade
+    ctx = context()
+    cq = command_queue()
 
     h, w = elevation.data.shape
     px, py = elevation.pixel_linear_shape
 
     elev_image = cl.Image(
-            context(),
+            ctx,
             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
             cl.ImageFormat(cl.channel_order.INTENSITY, cl.channel_type.FLOAT),
             shape = (w, h),
             hostbuf = elevation.data.copy('C'))
 
     hs_image = cl.Image(
-            context(),
+            ctx,
             cl.mem_flags.WRITE_ONLY,
             cl.ImageFormat(cl.channel_order.INTENSITY, cl.channel_type.FLOAT),
             shape = (w, h))
 
     pixel_shape = struct.pack('ff', px, py)
-    event = kernel(command_queue(), (w, h), None, elev_image, hs_image, pixel_shape)
+    event = kernel(cq, (w, h), None, elev_image, hs_image, pixel_shape)
 
     rv = cl.enqueue_map_image(
-            command_queue(),
+            cq,
             hs_image,
             cl.map_flags.READ,
             (0,0), (w,h),
@@ -89,6 +101,6 @@ def hill_shade(elevation):
             is_blocking = True)
 
     data = rv[0].copy()
-    rv[0].base.release(command_queue())
+    rv[0].base.release(cq)
 
     return data
