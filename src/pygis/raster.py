@@ -94,8 +94,6 @@ class Raster(object):
         # Calculate the extent of the raster in projection co-ords
         pix_bounds = [
                 [0,0],
-                [self.data.shape[1], 0],
-                [0, self.data.shape[0]],
                 [self.data.shape[1], self.data.shape[0]]
             ]
         proj_bounds = self.pixel_to_proj(pix_bounds)
@@ -103,9 +101,9 @@ class Raster(object):
         #: A tuple giving the left, right, bottom and top of the image in projection co-ordinates.
         self.proj_extent = (
                 proj_bounds[0,0],
-                proj_bounds[3,0],
+                proj_bounds[1,0],
+                proj_bounds[1,1],
                 proj_bounds[0,1],
-                proj_bounds[3,1],
             )
 
         #: A tuple giving the left, right, bottom and top of the image in linear units.
@@ -218,8 +216,16 @@ class Raster(object):
         """Return a string specifying the spatial reference in Well Known Text format."""
         return self.spatial_reference.ExportToPrettyWkt()
 
-def open_raster(filename, **kwargs):
+def open_raster(filename, window=None, **kwargs):
     """Open a raster file from *filename* and return a Raster instance.
+
+    :param window: the window, in projection co-ordinates, to load.
+
+    If *window* is not None, it is a tuple specifying the minimum x, maximum x,
+    minimum y, maximum y window to load from the raster. The co-ordinates are
+    specified as projection co-ordinates. If the requested region is outside of
+    the dataset bounds, a RuntimeError is raised. The requested region is
+    expanded to cover an integer number of pixels.
     
     Any keyword arguments are passed to the :py:class:`Raster` constructor.
 
@@ -232,7 +238,37 @@ def open_raster(filename, **kwargs):
     if raster is None:
         raise RuntimeError('Could not open file: %s' % (filename,))
 
-    data = np.array(raster.ReadAsArray(), dtype=np.float32)
+    xoff, yoff = (0, 0)
+    xsize, ysize = (None, None)
+
+    # Form the geo-transform matrix
+    gt = raster.GetGeoTransform()
+    geo_transform = np.matrix([
+        [gt[1], gt[2], gt[0]],
+        [gt[4], gt[5], gt[3]],
+        [0, 0, 1]])
+
+    if window is not None:
+        proj_extent = np.array([
+            [window[0], window[2], 1],
+            [window[1], window[3], 1]
+        ]).transpose()
+        pix_extent = (np.linalg.inv(geo_transform) * proj_extent).transpose()
+
+        if (pix_extent < 0).any() or \
+           (pix_extent[:,0] >= raster.RasterXSize).any() or \
+           (pix_extent[:,1] >= raster.RasterYSize).any():
+               raise RuntimeError('Window out of bounds')
+
+        offset = np.array(pix_extent.min(axis=0))[0]
+        size = np.abs(np.array(pix_extent[1] - pix_extent[0])[0])
+        xoff, yoff, _ = [int(x) for x in offset]
+        xsize, ysize, _ = [int(x) for x in size]
+
+    proj_off = geo_transform * np.matrix([xoff, yoff, 1]).transpose()
+    geo_transform[0:2,2] = proj_off[0:2]
+
+    data = np.array(raster.ReadAsArray(xoff=xoff, yoff=yoff, xsize=xsize, ysize=ysize), dtype=np.float32)
     if len(data.shape) > 2:
         # cope with odd ordering of arrays
         # 0,1,2 -> 1,2,0
@@ -241,13 +277,6 @@ def open_raster(filename, **kwargs):
 
     # HACK: Detect 'None' values and replace them with NAN. It's mucky :(
     data[data <= -1.0e30] = 0# np.nan
-
-    # Form the geo-transform matrix
-    gt = raster.GetGeoTransform()
-    geo_transform = np.matrix([
-        [gt[1], gt[2], gt[0]],
-        [gt[4], gt[5], gt[3]],
-        [0, 0, 1]])
 
     spatial_reference = osr.SpatialReference(raster.GetProjection())
 
